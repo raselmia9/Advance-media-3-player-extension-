@@ -1,0 +1,33 @@
+
+name: Build Advanced Media3 Extension
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build AIX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rush 2
+        uses: shreyashsaitwal/rush-cli@v2
+
+      - name: Build Extension
+        run: rush build
+
+      - name: Upload AIX File
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdvancedMedia3Extension-AIX
+          path: out/*.aix
+          if-no-files-found: error
