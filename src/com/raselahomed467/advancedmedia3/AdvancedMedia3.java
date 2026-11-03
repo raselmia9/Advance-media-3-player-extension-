@@ -8,9 +8,11 @@ import android.view.ViewGroup;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
-import androidx.media3.exoplayer.ExoPlayer;
 
 import com.google.appinventor.components.annotations.SimpleEvent;
 import com.google.appinventor.components.annotations.SimpleFunction;
@@ -18,6 +20,9 @@ import com.google.appinventor.components.runtime.AndroidNonvisibleComponent;
 import com.google.appinventor.components.runtime.AndroidViewComponent;
 import com.google.appinventor.components.runtime.ComponentContainer;
 import com.google.appinventor.components.runtime.EventDispatcher;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class AdvancedMedia3 extends AndroidNonvisibleComponent {
 
@@ -30,6 +35,9 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
 
     private String currentUrl = "";
 
+    private final Map<String, String> requestHeaders =
+        new HashMap<>();
+
     public AdvancedMedia3(ComponentContainer container) {
         super(container.$form());
 
@@ -37,7 +45,7 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         this.context = container.$context();
     }
 
-    // Create Player inside Arrangement
+    // Create Player
     @SimpleFunction(description = "Creates the video player inside an Arrangement.")
     public boolean Create(AndroidViewComponent arrangement) {
 
@@ -53,6 +61,7 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
 
             if (exoPlayer != null) {
                 ReleasePlayer();
+                parentLayout = (ViewGroup) parent;
             }
 
             exoPlayer = new ExoPlayer.Builder(context).build();
@@ -130,8 +139,55 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Load video URL
-    @SimpleFunction(description = "Loads a video from a URL.")
+    // Generic HTTP Header
+    @SimpleFunction(description = "Adds or updates an HTTP request header.")
+    public void SetHeader(String name, String value) {
+
+        if (name == null || name.trim().isEmpty()) {
+            ErrorOccurred("Header name is empty.");
+            return;
+        }
+
+        if (value == null) {
+            requestHeaders.remove(name.trim());
+        } else {
+            requestHeaders.put(name.trim(), value);
+        }
+    }
+
+    // Common Headers
+    @SimpleFunction(description = "Sets the Referer header.")
+    public void SetReferer(String value) {
+        SetHeader("Referer", value);
+    }
+
+    @SimpleFunction(description = "Sets the Cookie header.")
+    public void SetCookie(String value) {
+        SetHeader("Cookie", value);
+    }
+
+    @SimpleFunction(description = "Sets the User-Agent header.")
+    public void SetUserAgent(String value) {
+        SetHeader("User-Agent", value);
+    }
+
+    @SimpleFunction(description = "Sets the Origin header.")
+    public void SetOrigin(String value) {
+        SetHeader("Origin", value);
+    }
+
+    @SimpleFunction(description = "Sets the Authorization header.")
+    public void SetAuthorization(String value) {
+        SetHeader("Authorization", value);
+    }
+
+    @SimpleFunction(description = "Removes all HTTP request headers.")
+    public void ClearHeaders() {
+        requestHeaders.clear();
+    }
+
+    // Load URL with configured headers
+    @SimpleFunction(description = "Loads a video URL using the configured HTTP headers.")
     public void LoadUrl(String url) {
 
         if (exoPlayer == null) {
@@ -147,9 +203,27 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         try {
             currentUrl = url.trim();
 
-            MediaItem mediaItem = MediaItem.fromUri(currentUrl);
+            DefaultHttpDataSource.Factory dataSourceFactory =
+                new DefaultHttpDataSource.Factory();
 
-            exoPlayer.setMediaItem(mediaItem);
+            dataSourceFactory.setDefaultRequestProperties(
+                new HashMap<>(requestHeaders)
+            );
+
+            DefaultMediaSourceFactory mediaSourceFactory =
+                new DefaultMediaSourceFactory(context);
+
+            mediaSourceFactory.setDataSourceFactory(
+                dataSourceFactory
+            );
+
+            MediaItem mediaItem =
+                MediaItem.fromUri(currentUrl);
+
+            exoPlayer.setMediaSource(
+                mediaSourceFactory.createMediaSource(mediaItem)
+            );
+
             exoPlayer.prepare();
 
         } catch (Exception e) {
@@ -157,7 +231,6 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Play video
     @SimpleFunction(description = "Starts or resumes video playback.")
     public void Play() {
         if (exoPlayer != null) {
@@ -165,7 +238,6 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Pause video
     @SimpleFunction(description = "Pauses video playback.")
     public void Pause() {
         if (exoPlayer != null) {
@@ -173,7 +245,6 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Toggle playback
     @SimpleFunction(description = "Toggles Play and Pause.")
     public void PlayPause() {
         if (exoPlayer == null) return;
@@ -185,7 +256,6 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Seek video
     @SimpleFunction(description = "Seeks to a position in milliseconds.")
     public void SeekTo(long positionMs) {
         if (exoPlayer != null) {
@@ -193,15 +263,13 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Current position
-    @SimpleFunction(description = "Returns the current playback position in milliseconds.")
+    @SimpleFunction(description = "Returns current playback position in milliseconds.")
     public long GetCurrentPosition() {
         return exoPlayer != null
             ? exoPlayer.getCurrentPosition()
             : 0;
     }
 
-    // Video duration
     @SimpleFunction(description = "Returns video duration in milliseconds.")
     public long GetDuration() {
         if (exoPlayer == null) return 0;
@@ -211,13 +279,11 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         return duration == Player.TIME_UNSET ? 0 : duration;
     }
 
-    // Playing status
-    @SimpleFunction(description = "Checks whether the video is playing.")
+    @SimpleFunction(description = "Checks whether video is playing.")
     public boolean IsPlaying() {
         return exoPlayer != null && exoPlayer.isPlaying();
     }
 
-    // Enable or disable default controller
     @SimpleFunction(description = "Enables or disables the player controller.")
     public void SetControllerEnabled(boolean enabled) {
         if (playerView != null) {
@@ -225,7 +291,6 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Resize modes: FIT, FILL, ZOOM
     @SimpleFunction(description = "Sets video resize mode: FIT, FILL or ZOOM.")
     public void SetResizeMode(String mode) {
 
@@ -253,8 +318,7 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
         }
     }
 
-    // Release player resources
-    @SimpleFunction(description = "Releases the video player resources.")
+    @SimpleFunction(description = "Releases video player resources.")
     public void ReleasePlayer() {
 
         if (exoPlayer != null) {
@@ -278,7 +342,7 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
     }
 
     // Events
-    @SimpleEvent(description = "Fires when the player is created.")
+    @SimpleEvent(description = "Fires when player is created.")
     public void PlayerCreated() {
         EventDispatcher.dispatchEvent(this, "PlayerCreated");
     }
@@ -286,18 +350,14 @@ public class AdvancedMedia3 extends AndroidNonvisibleComponent {
     @SimpleEvent(description = "Fires when playback state changes.")
     public void PlaybackStateChanged(String state) {
         EventDispatcher.dispatchEvent(
-            this,
-            "PlaybackStateChanged",
-            state
+            this, "PlaybackStateChanged", state
         );
     }
 
     @SimpleEvent(description = "Fires when playing status changes.")
     public void PlayingChanged(boolean isPlaying) {
         EventDispatcher.dispatchEvent(
-            this,
-            "PlayingChanged",
-            isPlaying
+            this, "PlayingChanged", isPlaying
         );
     }
 
